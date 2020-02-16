@@ -43,8 +43,8 @@ class BasicDataset(Dataset):
         _src_lang, _tgt_lang = src_lang[1:], tgt_lang[1:]
         if reverse:
             pairs = [list(reversed(p)) for p in pairs]
-            input_lang = Lang(tgt_lang)
-            output_lang = Lang(src_lang)
+            input_lang = Lang(_tgt_lang)
+            output_lang = Lang(_src_lang)
         else:
             input_lang = Lang(_src_lang)
             output_lang = Lang(_tgt_lang)
@@ -52,7 +52,10 @@ class BasicDataset(Dataset):
         return input_lang, output_lang, pairs
 
     def indexesFromSentence(self, lang: Lang, sentence):
-        return [lang.word2index[word] for word in sentence.split(' ')]
+        if lang.vocab != None:
+            return [lang.transword2index(word) for word in sentence.split(' ')]
+        else:
+            return [lang.word2index[word] for word in sentence.split(' ')]
 
     def tensorFromSentence(self, lang: Lang, sentence):
         indexes = self.indexesFromSentence(lang, sentence)
@@ -62,18 +65,20 @@ class BasicDataset(Dataset):
     def __getitem__(self):
         input_lang, output_lang, pairs = self.preprocess(
             self.langs[0], self.langs[1], reverse=False)
-        for pair in pairs:
-            input_lang.addSentence(pair[0])
-            output_lang.addSentence(pair[1])
-
+        if input_lang.vocab and output_lang.vocab == None:   
+            for pair in pairs:
+                input_lang.addSentence(pair[0])
+                output_lang.addSentence(pair[1])
+        
         self.input_tensor = self.tensorFromSentence(input_lang, pairs[0])
         self.target_tensor = self.tensorFromSentence(output_lang, pairs[1])
         return {'input': self.input_tensor, 'target': self.target_tensor}
 
 
 class Lang:
-    def __init__(self, name):
+    def __init__(self, name,vocab:dict=None):
         self.name = name
+        self.vocab = vocab
         self.word2index = {}
         self.word2count = {}
         self.index2word = {0: "SOS", 1: "EOS"}
@@ -91,7 +96,8 @@ class Lang:
             self.n_words += 1
         else:
             self.word2count[word] += 1
-
+    def transword2index(self,word):
+        return self.vocab[word]
 
 def unicode2Ascii(sentence):
     return ''.join(

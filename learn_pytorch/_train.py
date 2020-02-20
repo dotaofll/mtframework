@@ -4,17 +4,18 @@ import os
 import random
 import sys
 
-import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import utils
+
 from torch import optim
 from torch.utils.data import DataLoader, random_split
 from tqdm import tqdm
 
-import DataSet
-import model.seq2seq.seq2seq_model as models
+import learn_pytorch.utils.DataSet
+import learn_pytorch.model.seq2seq.seq2seq_model as models
+
+import learn_pytorch.utils.timer
 from DataSet import EOS_token, SOS_token, _device
 
 TEACHER_FORCING_RATIO = .5
@@ -76,8 +77,8 @@ def train_seq(input_tensor: torch.Tensor, target_tensor: torch.Tensor, encoder: 
     return loss.item()/target_length
 
 
-def trainIters(encoder:nn.Module, decoder:nn.Module, n_iters, print_every=1000, val_persent=.1, plot_every=100, learning_rate=0.01):
-    start = utils.timer.time()
+def trainIters(encoder: nn.Module, decoder: nn.Module, n_iters, print_every=1000, val_persent=.1, plot_every=100, learning_rate=0.01):
+    start = learn_pytorch.utils.timer.time()
 
     print_loss_total = 0
     encoder_optimizer = optim.SGD(encoder.parameters(), lr=learning_rate)
@@ -107,5 +108,5 @@ def trainIters(encoder:nn.Module, decoder:nn.Module, n_iters, print_every=1000, 
         if iter % print_every == 0:
             print_loss_avg = print_loss_total / print_every
             print_loss_total = 0
-            print('%s (%d %d%%) %.4f' % (timeSince(start, iter / n_iters),
+            print('%s (%d %d%%) %.4f' % (learn_pytorch.utils.timer.timeSince(start, iter / n_iters),
                                          iter, iter / n_iters * 100, print_loss_avg))

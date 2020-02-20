@@ -9,6 +9,7 @@ _device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 class EncoderRNN(nn.Module):
     def __init__(self, input_size, hidden_size):
         super(EncoderRNN, self).__init__()
+
         self.hidden_size = hidden_size
         self.embedding = nn.Embedding(input_size, hidden_size)
         self.lstm = nn.LSTM(hidden_size, hidden_size)
@@ -26,8 +27,8 @@ class EncoderRNN(nn.Module):
 class DecoderRNN(nn.Module):
     def __init__(self, hidden_size, output_size):
         super(DecoderRNN, self).__init__()
-        self.hidden_size = hidden_size
 
+        self.hidden_size = hidden_size
         self.embedding = nn.Embedding(output_size, hidden_size)
         self.lstm = nn.LSTM(hidden_size, hidden_size)
         self.out = nn.Linear(hidden_size, output_size)
@@ -82,3 +83,65 @@ class AttnDecoderRNN(nn.Module):
 
     def initHidden(self):
         return torch.zeros(1, 1, self.hidden_size, device=_device)
+
+
+class Encoder_Seq(nn.Module):
+    def __init__(self, input_size, hidden_size, num_layers=4):
+        super(Encoder_Seq, self).__init__()
+
+        self.input_size = input_size
+        self.hidden_size = hidden_size
+        self.layers = num_layers
+        self.encoders = nn.ModuleList(
+            [EncoderRNN(self.input_size, self.hidden_size) for layer in range(self.layers)])
+
+    def forward(self, input, hidden):
+        for encoder in self.encoders:
+            output, hidden = encoder(input, hidden)
+        return output, hidden
+
+
+class Decoder_Seq(nn.Module):
+    def __init__(self, hidden_size, output_size, num_layers=4, dropout=.1, max_len=10, use_atten=True):
+        super(Decoder_Seq, self).__init__()
+
+        self.hidden_size = hidden_size
+        self.output_size = output_size
+        self.layers = num_layers
+        self.dropout = dropout
+        self.maxLen = max_len
+
+        if use_atten == True:
+            self.decoders = nn.ModuleList([AttnDecoderRNN(
+                self.hidden_size, self.output_size, self.dropout, self.maxLen) for layer in range(self.layers)])
+
+        self.decoders = nn.ModuleList(
+            [DecoderRNN(self.hidden_size, self.output_size) for layer in range(self.layers)])
+
+    def forward(self, input, hidden, encoder_outputs):
+        for decoder in self.decoders:
+            output, hidden, attn_weights = decoder(
+                input, hidden, encoder_outputs)
+        return output, hidden, attn_weights
+
+
+class Seq2Seq(nn.Module):
+    def __init__(self, input_size, hidden_size, output_size, num_layers=4, dropout=.1, max_len=10, use_atten=True):
+        super(Seq2Seq, self).__init__()
+
+        self.input_size = input_size
+        self.hidden_size = hidden_size
+        self.output_size = output_size
+        self.layers = num_layers
+        self.dropout = dropout
+        self.maxLen = max_len
+
+        self.encoder = Encoder_Seq(
+            self.input_size, self.hidden_size, self.layers)
+        self.decoder = Decoder_Seq(
+            self.hidden_size, self.output_size, self.layers, self.dropout, self, max_len, use_atten)
+
+    def forward(self, input, hidden):
+        output, hidden = self.encoder(input, hidden)
+        output, hidden, attn_weights = self.decoder(input, hidden, output)
+        return output, hidden, attn_weights

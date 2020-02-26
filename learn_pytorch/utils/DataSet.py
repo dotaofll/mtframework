@@ -22,7 +22,8 @@ class BasicDataset(Dataset):
         self.filename = [spilt_name(src_dir), spilt_name(tgt_dir)]
         self.langs = [splitext(src_dir)[1], splitext(tgt_dir)[1]]
 
-        logging.info('Creating dataset with {name1} {name2}'.format(name1=self.filename[0], name2=self.filename[1]))
+        logging.info('Creating dataset with {name1} {name2}'.format(
+            name1=self.filename[0], name2=self.filename[1]))
 
     def __len__(self):
         return self.input_tensor.size(0)
@@ -51,32 +52,21 @@ class BasicDataset(Dataset):
 
         return input_lang, output_lang, pairs
 
-    def indexesFromSentence(self, lang: Lang, sentence):
-        if lang.vocab != None:
-            return [lang.transword2index(word) for word in sentence.split(' ')]
-        else:
-            return [lang.word2index[word] for word in sentence.split(' ')]
-
-    def tensorFromSentence(self, lang: Lang, sentence):
-        indexes = self.indexesFromSentence(lang, sentence)
-        indexes.append(EOS_token)
-        return torch.tensor(indexes, dtype=torch.long, device='cpu').view(-1, 1)
-
     def __getitem__(self):
         input_lang, output_lang, pairs = self.preprocess(
             self.langs[0], self.langs[1], reverse=False)
-        if input_lang.vocab and output_lang.vocab == None:   
+        if input_lang.vocab and output_lang.vocab == None:
             for pair in pairs:
                 input_lang.addSentence(pair[0])
                 output_lang.addSentence(pair[1])
-        
-        self.input_tensor = self.tensorFromSentence(input_lang, pairs[0])
-        self.target_tensor = self.tensorFromSentence(output_lang, pairs[1])
+
+        self.input_tensor = tensorFromSentence(input_lang, pairs[0])
+        self.target_tensor = tensorFromSentence(output_lang, pairs[1])
         return {'input': self.input_tensor, 'target': self.target_tensor}
 
 
 class Lang:
-    def __init__(self, name,vocab:dict=None):
+    def __init__(self, name, vocab: dict = None):
         self.name = name
         self.vocab = vocab
         self.word2index = {}
@@ -96,8 +86,10 @@ class Lang:
             self.n_words += 1
         else:
             self.word2count[word] += 1
-    def transword2index(self,word):
+
+    def transword2index(self, word):
         return self.vocab[word]
+
 
 def unicode2Ascii(sentence):
     return ''.join(
@@ -111,3 +103,16 @@ def normalizeString(sentence):
     sentence = re.sub(r'([.!?])', r' \1', sentence)
     sentence = re.sub(r'[^a-zA-Z.!?]+', r' ', sentence)
     return sentence
+
+
+def indexesFromSentence(lang: Lang, sentence):
+    if lang.vocab != None:
+        return [lang.transword2index(word) for word in sentence.split(' ')]
+    else:
+        return [lang.word2index[word] for word in sentence.split(' ')]
+
+
+def tensorFromSentence(lang: Lang, sentence):
+    indexes = indexesFromSentence(lang, sentence)
+    indexes.append(EOS_token)
+    return torch.tensor(indexes, dtype=torch.long, device='cpu').view(-1, 1)

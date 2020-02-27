@@ -11,7 +11,8 @@ class BaseRNN(nn.Module):
         self.__hidden_size = hidden_size
         self.__n_layers = n_layers
         self.__input_dropout_p = input_dropout_p
-        self.dropout_p = nn.Dropout(dropout_p)
+        
+        self.dropout = nn.Dropout(dropout_p)
         
         if rnn_cell.lower() == 'lstm':
             self.rnn_cell = nn.LSTM

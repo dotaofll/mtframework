@@ -5,27 +5,34 @@ import torch.nn.functional as F
 import utils
 from torch import optim
 
-import model.seq2seq.BaseRNN as BaseRNN
-
-_device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
+from model.seq2seq.attention import Attention
+from model.seq2seq.BaseRNN import BaseRNN
 
 class EncoderRNN(BaseRNN):
     def __init__(self, vocab_size, max_len, hidden_size, n_layers=1, rnn_cell='lstm',
                  input_dropout_p=.0, dropout_p=.0, embedding=None, update_embedding=True):
-        super(EncoderRNN, self).__init__(vocab_size, max_len, hidden_size, n_layers,
-                                         rnn_cell, input_dropout_p, dropout_p)
+        super(EncoderRNN, self).__init__(vocab_size=vocab_size,
+                                         max_len=max_len,
+                                         hidden_size=hidden_size,
+                                         n_layers=n_layers,
+                                         rnn_cell=rnn_cell,
+                                         input_dropout_p=input_dropout_p,
+                                         dropout_p=dropout_p)
 
-        self.rnn = rnn_cell(hidden_size, hidden_size,
-                            n_layers, dropout=dropout_p)
-        self.embedding = nn.Embedding(vocab_size, hidden_size)
+        self.rnn = rnn_cell(input_size=hidden_size,
+                            hidden_size=hidden_size,
+                            num_layers=n_layers,
+                            dropout=dropout_p)
+
+        self.embedding = nn.Embedding(
+            num_embeddings=vocab_size, embedding_dim=hidden_size)
         if embedding == None:
             self.embedding = nn.Embedding.from_pretrained(embedding)
         self.embedding.requires_grad = update_embedding
 
     def forward(self, input: torch.Tensor, input_length: None):
         embedded = self.embedding(input)
-        output = self.dropout_p(embedded)
+        output = self.dropout(embedded)
         output, hidden = self.rnn(output)
         return output, hidden
 
@@ -39,17 +46,26 @@ class DecoderRNN(BaseRNN):
 
     def __init__(self, vocab_size, max_len, hidden_size, n_layers=1, rnn_cell='lstm',
                  input_dropout_p=.0, dropout_p=.0, use_attention=False):
-        super(DecoderRNN, self).__init__(vocab_size, max_len, hidden_size, n_layers,
-                                         rnn_cell, input_dropout_p, dropout_p)
+        super(DecoderRNN, self).__init__(vocab_size=vocab_size,
+                                         max_len=max_len,
+                                         hidden_size=hidden_size,
+                                         n_layers=n_layers,
+                                         rnn_cell=rnn_cell,
+                                         input_dropout_p=input_dropout_p,
+                                         dropout_p=dropout_p)
 
         self.__output_size = vocab_size
         self.use_attention = use_attention
 
-        self.embedding = nn.Embedding(self.__output_size, hidden_size)
-        self.rnn = rnn_cell(hidden_size, hidden_size,
-                            n_layers, dropout=dropout_p)
+        self.embedding = nn.Embedding(
+            num_embeddings=self.__output_size, embedding_dim=hidden_size)
+        self.rnn = rnn_cell(input_size=hidden_size,
+                            hidden_size=hidden_size,
+                            num_layers=n_layers,
+                            dropout=dropout_p)
+
         if self.use_attention == True:
-            self.attetion = Attention(self.hidden_size)
+            self.attetion = Attention(dim=self.hidden_size)
 
         self.init_input = None
 
@@ -66,7 +82,8 @@ class DecoderRNN(BaseRNN):
         output, hidden = self.rnn(output, hidden)
         attn = None:
         if self.use_attention == True:
-            output, attn = self.attetion(output, encoder_outputs)
+            output, attn = self.attetion(output=output,
+                                         encoder_outputs=encoder_outputs)
 
         predict_softmax = self.softmax(self.out(output.contiguous(
         ).view(-1, self.hidden_size)).view(batch_size, output_size, -1))
@@ -113,8 +130,10 @@ class DecoderRNN(BaseRNN):
 
         if use_teacher_forcing:
             decoder_input = input[:, :, -1]
-            decoder_output, decoder_hidden, attn = self.forward_step(decoder_input, decoder_hidden,
-                                                                     encoder_outputs, function=function)
+            decoder_output, decoder_hidden, attn = self.forward_step(input=decoder_input,
+                                                                     hidden=decoder_hidden,
+                                                                     encoder_outputs=encoder_outputs,
+                                                                     activ_function=function)
 
             def decode(idx, step_out, step_attn):
                 step_output = decoder_output[:, di, :]
@@ -157,45 +176,6 @@ class DecoderRNN(BaseRNN):
         ret_dict[DecoderRNN.KEY_LENGTH] = lengths.tolist()
 
         return decoder_outputs, decoder_hidden, ret_dict
-
-
-class AttnDecoderRNN(nn.Module):
-    def __init__(self, hidden_size, output_size, dropout_p=.1, max_length=10):
-        super(AttnDecoderRNN, self).__init__()
-
-        self.hidden_size = hidden_size
-        self.output_size = output_size
-        self.dropout_p = dropout_p
-        self.max_length = max_length
-
-        self.embedding = nn.Embedding(self.output_size, self.hidden_size)
-        self.attn = nn.Linear(self.hidden_size * 2, self.max_length)
-        self.attn_combine = nn.Linear(self.hidden_size * 2, self.hidden_size)
-        self.dropout = nn.Dropout(self.dropout_p)
-        self.lstm = nn.LSTM(self.hidden_size, self.hidden_size)
-        self.out = nn.Linear(self.hidden_size, self.output_size)
-
-    def forward(self, input, hidden, encoder_outputs):
-        embedded = self.embedding(input).view(1, 1, -1)
-        embedded = self.dropout(embedded)
-
-        attn_weights = F.softmax(
-            self.attn(torch.cat((embedded[0], hidden[0]), 1)), dim=1
-        )
-        attn_applied = torch.bmm(attn_weights.unsqueeze(0),
-                                 encoder_outputs.unsqueeze(0))
-
-        output = torch.cat((embedded[0], attn_applied[0]), 1)
-        output = self.attn_combine(output).unsqueeze(0)
-
-        output = F.relu(output)
-        output, hidden = self.lstm(output, hidden)
-
-        output = F.log_softmax(self.out(output[0]), dim=1)
-        return output, hidden, attn_weights
-
-    def initHidden(self):
-        return torch.zeros(1, 1, self.hidden_size, device=_device)
 
 
 class Seq2Seq(nn.Module):

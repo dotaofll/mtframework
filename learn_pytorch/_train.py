@@ -6,6 +6,7 @@ import sys
 
 import torch
 import torch.nn as nn
+import torchtext as tt
 import torch.nn.functional as F
 
 from torch import optim
@@ -17,16 +18,14 @@ import learn_pytorch.model.seq2seq.seq2seq_model as models
 
 import learn_pytorch.utils.timer
 from DataSet import EOS_token, SOS_token, _device
+from model.seq2seq.seq2seq_model import Seq2Seq
 
 TEACHER_FORCING_RATIO = .5
 
-src_dir = 'data/src/'
-tgt_dir = 'data/tgt/'
 
 
-def train_seq(input_tensor: torch.Tensor, target_tensor: torch.Tensor, encoder: nn.Module, decoder: nn.Module, encoder_optimizer, decoder_optimizer,
+def train_seq(input_tensor: torch.Tensor, target_tensor, models: Seq2Seq, decoder: nn.Module, encoder_optimizer, decoder_optimizer,
               criterion, max_length=10, lr=0.1):
-    encoder_hidden = encoder.initHidden()
 
     encoder_optimizer.zero_grad()
     decoder_optimizer.zero_grad()
@@ -40,34 +39,15 @@ def train_seq(input_tensor: torch.Tensor, target_tensor: torch.Tensor, encoder: 
     loss = 0
 
     for ei in range(input_length):
-        encoder_output, encoder_hidden = encoder(
-            input_tensor[ei], encoder_hidden
-        )
-        encoder_outputs[ei] = encoder_output[0, 0]
+        decoder_outputs, decoder_hidden, other = models(input=input_tensor,
+                                                        input_length=input_length,
+                                                        target=target_tensor,
+                                                        teacher_forcing_ratio=TEACHER_FORCING_RATIO)
 
-    decoder_input = torch.tensor([[SOS_token]], device=_device)
-    decoder_hidden = encoder_hidden
-
-    using_teacher_forcing = True if random.random() < TEACHER_FORCING_RATIO else False
-
-    if using_teacher_forcing:
-        for di in range(target_length):
-            decoder_output, decoder_hidden, decoder_attention = decoder(
-                decoder_input, decoder_hidden, encoder_outputs
-            )
-
-        loss += criterion(decoder_output, target_tensor[di])
-    else:
-        for di in range(target_length):
-            decoder_output, decoder_hidden, decoder_attention = decoder(
-                decoder_input, decoder_hidden, encoder_outputs
-            )
-            topv, topi = decoder_output.topk(1)
-            decoder_input = topi.squeeze().detach()
-
-            loss += criterion(decoder_output, target_tensor[di])
-            if decoder_input.item() == EOS_token:
-                break
+    for step, step_output in enumerate(decoder_outputs):
+        batch_size = target_length
+        loss += criterion(step_output.contiguous().view(batch_size, -1),
+                          target_tensor[:, step + 1])
 
     loss.backward()
 
@@ -77,7 +57,7 @@ def train_seq(input_tensor: torch.Tensor, target_tensor: torch.Tensor, encoder: 
     return loss.item()/target_length
 
 
-def trainIters(encoder: nn.Module, decoder: nn.Module, n_iters, print_every=1000, val_persent=.1, plot_every=100, learning_rate=0.01):
+def trainIters(model: Seq2Seq, n_iters, print_every=1000, val_persent=.1, plot_every=100, learning_rate=0.01):
     start = learn_pytorch.utils.timer.time()
 
     print_loss_total = 0
@@ -100,8 +80,8 @@ def trainIters(encoder: nn.Module, decoder: nn.Module, n_iters, print_every=1000
             input_tensor = batch['input']
             target_tensor = batch['target']
 
-            loss = train_seq(input_tensor, target_tensor, encoder,
-                             decoder, encoder_optimizer, decoder_optimizer, criterion)
+            loss = train_seq(input_tensor, target_tensor, model,
+                             encoder_optimizer, decoder_optimizer, criterion)
 
             print_loss_total += loss
 

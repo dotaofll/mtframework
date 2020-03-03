@@ -5,21 +5,20 @@ input_size =4
 hidden_size =4
 output_size=10
 embedd = nn.Embedding(12,4)
+soft = nn.LogSoftmax(dim=1)
 
+a=[1,2,3]
+b=[4,5,6]
 
-a= torch.zeros(1,1,5)
-a= torch.randn(4,2,4)
-s=torch.LongTensor([[1,2,3,4]])
-input = torch.LongTensor([[1,2,4,5,6],[4,3,2,9,8]])
-batch_size = input.size(0) #2
-output_size = input.size(1) #4
-word_to_ix = {'hello': 0, 'world': 1}
-hello_idx = torch.LongTensor([word_to_ix['hello']])
-hello_idx
-world_idx = torch.LongTensor([word_to_ix['world']])
-out = embedd(input)
-input
-world_idx
-output=out.view(-1,4).view(batch_size,output_size,-1)
-output[1]
-a[:,:,-1]
+s_a="hello world"
+s_b="jdiosaudg asjdoi"
+t = (s_a,s_b)
+s_a_t= torch.Tensor(s_a)
+a_t = torch.tensor(a,dtype=torch.long, device='cpu').view(-1, 1)
+b_t = torch.tensor(b,dtype=torch.long, device='cpu').view(-1, 1)
+
+l = [a_t,b_t]
+
+longt= torch.stack(l)
+print(longt.size())
+print(1)

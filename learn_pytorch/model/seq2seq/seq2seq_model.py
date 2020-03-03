@@ -8,6 +8,7 @@ from torch import optim
 from model.seq2seq.attention import Attention
 from model.seq2seq.BaseRNN import BaseRNN
 
+
 class EncoderRNN(BaseRNN):
     def __init__(self, vocab_size, max_len, hidden_size, n_layers=1, rnn_cell='lstm',
                  input_dropout_p=.0, dropout_p=.0, embedding=None, update_embedding=True):
@@ -76,7 +77,7 @@ class DecoderRNN(BaseRNN):
         batch_size = input.size(0)
         output_size = input.size(1)
         output = self.embedding(input)
-        output = self.dropout_p(output)
+        output = self.dropout(output)
         output: torch.Tensor = activ_function(output)
 
         output, hidden = self.rnn(output, hidden)

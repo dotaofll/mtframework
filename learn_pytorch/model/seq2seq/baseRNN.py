@@ -6,17 +6,17 @@ class BaseRNN(nn.Module):
                  n_layers: int, rnn_cell: str, input_dropout_p: float, dropout_p: float):
         super(BaseRNN, self).__init__()
 
-        self.__vocab_size = vocab_size
-        self.__max_len = max_len
-        self.__hidden_size = hidden_size
-        self.__n_layers = n_layers
-        self.__input_dropout_p = input_dropout_p
-        
-        self.dropout = nn.Dropout(dropout_p)
+        self.vocab_size = vocab_size
+        self.max_len = max_len
+        self.hidden_size = hidden_size
+        self.n_layers = n_layers
+        self.input_dropout_p = input_dropout_p
+        self.dropout_p=dropout_p 
+        self.dropout = nn.Dropout(p=input_dropout_p)
         
         if rnn_cell.lower() == 'lstm':
             self.rnn_cell = nn.LSTM
-        else if rnn_cell.lower() == 'gru':
+        elif  rnn_cell.lower() == 'gru':
             self.rnn_cell = nn.GRU
         else:
             raise ValueError("Unsupported RNN Cell: {0}".format(rnn_cell))

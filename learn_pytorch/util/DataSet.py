@@ -9,6 +9,7 @@ import numpy as np
 
 import torch
 from torch.utils.data import Dataset
+from torchtext.utils import unicode_csv_reader
 
 SOS_token = 0
 EOS_token = 1
@@ -22,8 +23,9 @@ def StringWrapper(string: str):
 
 class BasicDataset(Dataset):
 
-    base_data = StringWrapper(os.path.join(
-        os.getcwd(), 'learn_pytorch', 'data', '{fuck}'))
+    if __debug__:
+        base_data = StringWrapper(os.path.join(
+            os.getcwd(), 'learn_pytorch', 'data', '{fuck}'))
 
     def __init__(self, filename: list):
 
@@ -44,6 +46,9 @@ class BasicDataset(Dataset):
 
     def __len__(self):
         return len(self.load_data[1])
+
+    def map(self, func, num_of_workers: 0):
+        pass
 
     def preprocess(self, idx, src_lang, tgt_lang, reverse=False):
 
@@ -100,7 +105,8 @@ class BasicDataset(Dataset):
         _count(s_words, s_counts, src_vocab, count_s)
         _count(t_words, t_counts, tgt_vocab, count_t)
 
-        return src_vocab, tgt_vocab
+        self.src_vocab = src_vocab
+        self.tgt_vocab = tgt_vocab
 
     def __count_words(self, direc: str):
         counter = Counter()
@@ -127,7 +133,11 @@ class BasicDataset(Dataset):
         self.input_tensor = tensorFromSentence(input_lang, pairs[0])
         self.target_tensor = tensorFromSentence(output_lang, pairs[1])
         '''
-        return pairs
+        return {'src': pairs[0],
+                'tgt': pairs[1],
+                'src_vocab': self.src_vocab,
+                'tgt_vocab': self.tgt_vocab
+                }
         # return {'input': self.input_tensor, 'target': self.target_tensor}
 
 
@@ -162,14 +172,16 @@ class Lang:
 
 class Example(object):
     @classmethod
-    def fromlist(cls,data,func):
+    def fromlist(cls, data, func):
         ex = cls()
         for val in data:
-            val=func(val)
+            val = func(val)
         return ex
+
 
 def preprocess(data):
     pass
+
 
 def unicode2Ascii(sentence):
     return ''.join(
@@ -198,4 +210,4 @@ def tensorFromSentence(lang: Lang, _dict, direc):
     pad_li = [lang.vocab['<pad>'] for x in range(_dict[get_pad_num]+1)]
     indexes.extend(pad_li)
     indexes.append(EOS_token)
-    return torch.tensor(indexes, dtype=torch.long, device='cpu').view(-1, 1)
+    return torch.tensor(indexes, dtype=torch.long, device='cpu')

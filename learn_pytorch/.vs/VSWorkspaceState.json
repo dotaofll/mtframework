@@ -1,0 +1,12 @@
+{
+  "ExpandedNodes": [
+    "",
+    "\\data",
+    "\\dataset",
+    "\\model",
+    "\\model\\seq2seq",
+    "\\util"
+  ],
+  "SelectedNode": "\\model\\seq2seq\\attention.py",
+  "PreviewInSolutionExplorer": false
+}

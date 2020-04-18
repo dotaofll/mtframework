@@ -1,6 +1,6 @@
 import torch.nn as nn
 import torch
-import torch.functional as F
+import torch.nn.functional as F
 
 
 class Attention(nn.Module):
@@ -13,7 +13,7 @@ class Attention(nn.Module):
         hidden_size = output.size(2)
         output_size = context.size(1)
 
-        attn = torch.bmm(output, context.transpose(2, 1))
+        attn = torch.bmm(output, context.transpose(1,2))
         attn = F.softmax(attn.view(-1, output_size),
                          dim=1).view(batch_size, -1, output_size)
 
